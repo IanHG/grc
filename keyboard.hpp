@@ -23,8 +23,6 @@ class keyboard_queue
 {
    using event_handler_t = event_handler<ev_type, void()>;
    using queue_t = blocking_queue<ev_type>;
-   //using event_t = typename event_handler_t::event_t;
-   //using function_t = typename event_handler_t::function_t;
 
    protected:
       void update(const event_t& keyboard_event)
@@ -33,21 +31,24 @@ class keyboard_queue
       }
 
    public:
-      //void register_function(const event_t& event, const function_t& f)
-      //{
-      //   event_handler_t::register_function(event,f);
-      //}
 
       void handle_events()
       {
-         while(!queue_t::empty())
+         if(queue_t::empty())
          {
-            // get an event
-            event_t event = 0;
-            queue_t::pop_try_wait(event); 
+            event_handler_t::handle_noevent();
+         }
+         else
+         {
+            while(!queue_t::empty())
+            {
+               // get an event
+               event_t event = 0;
+               queue_t::pop_try_wait(event); 
 
-            // then handle event
-            event_handler_t::handle_event(event);
+               // then handle event
+               event_handler_t::handle_event(event);
+            }
          }
       }
 };

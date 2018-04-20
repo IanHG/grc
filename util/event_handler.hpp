@@ -36,14 +36,20 @@ class event_handler<EV,T(Ts...)>
       //! Map of registered events.
       event_map_t m_function_map;
 
-      //! Mutex
-      mutex_t m_mutex;
+      //! Mutex for manipulating function map.
+      mutex_t m_function_mutex;
       
       //!
       register_list_t m_register_list;
+      
+      //! Mutex for manipulating register_list
+      mutex_t m_register_mutex;
 
       //!
       deregister_list_t m_deregister_list;
+      
+      //! Mutex for manipulating deregister list
+      mutex_t m_deregister_mutex;
       
       
       //! Generate unique ID for registered events.
@@ -57,8 +63,6 @@ class event_handler<EV,T(Ts...)>
       void register_function_impl(const event_t& event, const function_t& f, const uid_basic_t& uid)
       {
          debug::message("REGISTERING EVENT");
-         std::lock_guard<mutex_t> lock(m_mutex);
-
          //uid_basic_t uid = this->generate_uid();
          m_function_map.insert( {event, std::forward_as_tuple(f, uid) } );
          //return {event, uid};
@@ -68,7 +72,6 @@ class event_handler<EV,T(Ts...)>
       void deregister_function_impl(const uid_t& uid)
       {  
          debug::message("DEREGISTER EVENT");
-         std::lock_guard<mutex_t> lock(m_mutex);
          debug::message("DEREGISTER AFTER LOCK");
 
          auto range = m_function_map.equal_range(std::get<0>(uid));
@@ -91,6 +94,28 @@ class event_handler<EV,T(Ts...)>
 
          debug::message("DONE DEREGISTERING EVENT");
       }
+      
+      //
+      void handle_register()
+      {
+         std::lock_guard<mutex_t> register_lock(m_register_mutex);
+         for(const auto& t : m_register_list)
+         {
+            register_function_impl(std::get<0>(t), std::get<1>(t), std::get<2>(t));
+         }
+         m_register_list.clear();
+      }
+
+      //
+      void handle_deregister()
+      {
+         std::lock_guard<mutex_t> deregister_lock(m_deregister_mutex);
+         for(const auto& uid : m_deregister_list)
+         {
+            deregister_function_impl(uid);
+         }
+         m_deregister_list.clear();
+      }
 
    public:
       /**
@@ -109,11 +134,9 @@ class event_handler<EV,T(Ts...)>
        **/
       uid_t register_function(const event_t& event, const function_t& f)
       {
-         debug::message("REGISTERING EVENT");
-         std::lock_guard<mutex_t> lock(m_mutex);
+         std::lock_guard<mutex_t> lock(m_register_mutex);
 
          uid_basic_t uid = this->generate_uid();
-         //m_function_map.insert( {event, std::forward_as_tuple(f, uid) } );
          m_register_list.emplace_back(std::forward_as_tuple(event, f, uid) );
          return {event, uid};
       }
@@ -123,9 +146,18 @@ class event_handler<EV,T(Ts...)>
        **/
       void deregister_function(const uid_t& uid)
       {
-         std::lock_guard<mutex_t> lock(m_mutex);
+         std::lock_guard<mutex_t> lock(m_deregister_mutex);
 
          m_deregister_list.emplace_back(uid);
+      }
+
+      /**
+       *
+       **/
+      void handle_noevent()
+      {
+         this->handle_deregister(); 
+         this->handle_register();
       }
       
       /**
@@ -133,7 +165,7 @@ class event_handler<EV,T(Ts...)>
        **/
       void handle_event(const event_t& event, Ts&&... ts)
       {
-         std::lock_guard<mutex_t> lock(m_mutex);
+         std::lock_guard<mutex_t> lock(m_function_mutex);
 
          debug::message("HANDING EVENT");
 
@@ -142,18 +174,9 @@ class event_handler<EV,T(Ts...)>
          {
             std::get<0>(iter->second)(std::forward<Ts>(ts)...);
          }
-
-         for(const auto& uid : m_deregister_list)
-         {
-            deregister_function_impl(uid);
-         }
-         m_deregister_list.clear();
-
-         for(const auto& t : m_register_list)
-         {
-            register_function_impl(std::get<0>(t), std::get<1>(t), std::get<2>(t));
-         }
-         m_register_list.clear();
+         
+         this->handle_deregister(); 
+         this->handle_register();
       }
 };
 
