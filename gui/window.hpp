@@ -77,6 +77,11 @@ class window
          getmaxyx(m_window, y, x);
       }
 
+      void rebox()
+      {
+         box(m_window, 0,0);
+      }
+
       WINDOW* get()
       {
          return m_window;

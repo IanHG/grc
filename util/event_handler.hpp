@@ -7,7 +7,6 @@
 #include <vector>
 #include <iostream>
 
-
 #include "../gui/debug.hpp"
 
 // EV := event type    F := function type
@@ -62,24 +61,16 @@ class event_handler<EV,T(Ts...)>
       // Register function
       void register_function_impl(const event_t& event, const function_t& f, const uid_basic_t& uid)
       {
-         debug::message("REGISTERING EVENT");
-         //uid_basic_t uid = this->generate_uid();
          m_function_map.insert( {event, std::forward_as_tuple(f, uid) } );
-         //return {event, uid};
       }
       
       //!
       void deregister_function_impl(const uid_t& uid)
       {  
-         debug::message("DEREGISTER EVENT");
-         debug::message("DEREGISTER AFTER LOCK");
-
          auto range = m_function_map.equal_range(std::get<0>(uid));
          
-         debug::message("AM I EVEN HERE??");
          for(auto iter = range.first; iter != range.second; )
          {
-            debug::message("WTF");
             if(std::get<1>(iter->second) == std::get<1>(uid))
             {
                iter = m_function_map.erase(iter);
@@ -89,10 +80,7 @@ class event_handler<EV,T(Ts...)>
             {
                ++iter;
             }
-            debug::message("LOL");
          }
-
-         debug::message("DONE DEREGISTERING EVENT");
       }
       
       //
@@ -152,10 +140,12 @@ class event_handler<EV,T(Ts...)>
       }
 
       /**
-       *
+       * Handle no events. Will handle all function registers/deregisters. 
        **/
       void handle_noevent()
       {
+         std::lock_guard<mutex_t> lock(m_function_mutex);
+
          this->handle_deregister(); 
          this->handle_register();
       }
@@ -167,7 +157,7 @@ class event_handler<EV,T(Ts...)>
       {
          std::lock_guard<mutex_t> lock(m_function_mutex);
 
-         debug::message("HANDING EVENT");
+         debug::message("HANDLING EVENT");
 
          auto range = m_function_map.equal_range(event);
          for(auto iter = range.first; iter != range.second; ++iter)
@@ -188,21 +178,27 @@ class event_registerable
       using uid_t = typename event_handler_t::uid_t;
       using event_t = typename event_handler_t::event_t;
       using function_t = typename event_handler_t::function_t;
+      using mutex_t = std::recursive_mutex;
 
       std::vector<uid_t> m_registered_events;
+
+      mutex_t m_mutex;
+
    protected:
       event_registerable() = default;
 
    public:
       void register_function(event_handler_t& evh, const event_t& event, const function_t& f)
       {
-         debug::message("register in event_registerable");
+         std::lock_guard<mutex_t> lock(m_mutex);
+
          m_registered_events.emplace_back(evh.register_function(event, f));
       }
 
       void deregister_functions(event_handler_t& evh)
       {
-         debug::message("deregister in event_registerable");
+         std::lock_guard<mutex_t> lock(m_mutex);
+         
          for(const auto& ev : m_registered_events)
          {
             evh.deregister_function(ev);

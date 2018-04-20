@@ -54,6 +54,26 @@ class editing_string
          }
       }
 
+      void incr_active()
+      {
+         std::lock_guard<mutex_t> lock(m_mutex);
+         
+         if(m_active != m_characters.end())
+         {
+            ++m_active;
+         }
+      }
+
+      void decr_active()
+      {
+         std::lock_guard<mutex_t> lock(m_mutex);
+
+         if(m_active != m_characters.begin())
+         {
+            --m_active;
+         }
+      }
+
       std::tuple<std::string, int> get()
       {
          std::lock_guard<mutex_t> lock(m_mutex);
@@ -119,6 +139,13 @@ class editing_string
          generate_alpha_event('W');
          generate_alpha_event('Y');
          generate_alpha_event('Z');
+         
+         generate_alpha_event('.');
+         generate_alpha_event(':');
+         generate_alpha_event(',');
+         generate_alpha_event(';');
+         generate_alpha_event('?');
+         generate_alpha_event('!');
 
          #undef generate_alpha_event
          
@@ -140,18 +167,25 @@ class editing_string
          
          event_registerable<keyboard>::register_function(kb, ' ', [this](){ this->insert(' '); } );
 
+         // Arrow keys
+         event_registerable<keyboard>::register_function(kb, KEY_LEFT  , [this](){ this->decr_active(); } );
+         event_registerable<keyboard>::register_function(kb, KEY_RIGHT , [this](){ this->incr_active(); } );
+
+
          // Special keys
-         event_registerable<keyboard>::register_function(kb, KEY_ENTER    , [this](){ this->clear(); } );
-         event_registerable<keyboard>::register_function(kb, 10           , [this](){ this->clear(); } );
+         //event_registerable<keyboard>::register_function(kb, KEY_ENTER    , [this](){ this->clear(); } );
+         //event_registerable<keyboard>::register_function(kb, 10           , [this](){ this->clear(); } );
          event_registerable<keyboard>::register_function(kb, KEY_DL       , [this](){ this->del(); } );
          event_registerable<keyboard>::register_function(kb, KEY_BACKSPACE, [this](){ this->del(); } );
-         
-         event_registerable<keyboard>::register_function(kb, 27           , [this, &kb](){ 
-            debug::message("HIT ESCAPE");
+
+         #define KEY_ESC 27
+
+         event_registerable<keyboard>::register_function(kb, KEY_ESC , [this, &kb](){ 
             this->deregister_events(kb);
-            event_registerable<keyboard>::register_function(kb, 27, [this, &kb](){ this->register_events(kb); } );
+            event_registerable<keyboard>::register_function(kb, KEY_ESC, [this, &kb](){ this->register_events(kb); } );
          } );
 
+         #undef KEY_ESC
       }
       
       //! 
