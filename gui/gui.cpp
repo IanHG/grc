@@ -5,19 +5,37 @@
 namespace gui
 {
 
-void initialize()
+/**
+ * Initialize the gui.
+ **/
+gui::gui()
 {
-   // Initialize ncurses
    ::initscr();
+   ::keypad(stdscr, TRUE);
+   ::cbreak();
+   ::noecho();
+   ::curs_set(0);
+   ::refresh();
 }
 
-void finalize()
+/**
+ * Destroy the gui.
+ **/
+gui::~gui()
 {
    ::endwin();
 }
 
-void refresh()
+/**
+ * Draw the gui.
+ **/
+void gui::draw()
 {
+   for(const auto& elem : m_elements)
+   {
+      elem->draw();
+   }
+
    ::refresh();  
 }
 

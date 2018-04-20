@@ -1,9 +1,9 @@
 CXX=g++
-CXXSTD=--std=c++14
+CXXSTD=--std=c++17
 CXXOPTIMFLAGS=-O3 -g
 CXXDEBUGFLAGS=-g -O0 -rdynamic
 CXXFLAGS=-Wall $(CXXOPTIMFLAGS)
-LIBS=-lncurses
+LIBS=-lncurses -lpthread
 
 # find source files
 SOURCEDIR := $(shell pwd)

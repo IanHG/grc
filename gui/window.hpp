@@ -3,35 +3,39 @@
 
 #include <ncurses.h>
 
+#include "widget.hpp"
+#include "gui.hpp"
+
 namespace gui
 {
 namespace detail
 {
 
-// Wrap ncurses
-WINDOW* newwin(int height, int width, int starty, int startx)
-{
-   return ::newwin(height, width, starty, startx);
-}
-
-void box(WINDOW* win, int x, int y)
-{
-   ::box(win, x, y);
-}
-
-void wrefresh(WINDOW* win)
-{
-   ::wrefresh(win);
-}
-
-void delwin(WINDOW* win)
-{
-   ::delwin(win);
-}
-
+//// Wrap ncurses
+//WINDOW* newwin(int height, int width, int starty, int startx)
+//{
+//   return ::newwin(height, width, starty, startx);
+//}
+//
+//void box(WINDOW* win, int x, int y)
+//{
+//   ::box(win, x, y);
+//}
+//
+//void wrefresh(WINDOW* win)
+//{
+//   ::wrefresh(win);
+//}
+//
+//void delwin(WINDOW* win)
+//{
+//   ::delwin(win);
+//}
+//
 }
 
 class window
+   :  public widget
 {
    private:
       int m_height = 0;
@@ -47,9 +51,9 @@ class window
          ,  m_pos_x(x)
          ,  m_pos_y(y)
       {
-         m_window = detail::newwin(m_height, m_width, m_pos_x, m_pos_y);
+         m_window = newwin(m_height, m_width, m_pos_y, m_pos_x);
          
-         detail::box(m_window, 0,0);
+         box(m_window, 0,0);
          
          //detail::wrefresh(m_window);
       }
@@ -60,19 +64,25 @@ class window
          
          this->draw();
          
-         detail::delwin(m_window);
+         delwin(m_window);
       }
 
-      void draw()
+      void draw() const
       {
-         detail::wrefresh(m_window);
+         wrefresh(m_window);
       }
-      
+
+      void get_max_xy(int& x, int& y)
+      {
+         getmaxyx(m_window, y, x);
+      }
+
       WINDOW* get()
       {
          return m_window;
       }
 
+      static window create(int h, int w, int x, int y);
 };
 
 } /* namespace gui */
