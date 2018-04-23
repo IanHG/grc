@@ -8,20 +8,40 @@
 template<class T>
 class blocking_queue
 {
+   public:
+      using data_type  = T;
+
    private:
-      mutable std::mutex m_mutex;
+      using mutex_type = std::mutex;
+
+      mutable mutex_type m_mutex;
       std::condition_variable m_condition;
-      std::deque<T> m_queue;
+      std::deque<data_type> m_queue;
    
    public:
-      /*! @function void push(const T& t) 
+      /*!
+       *
+       */
+      blocking_queue() = default;
+
+      /*!
+       *
+       */
+      blocking_queue(const blocking_queue&) = delete;
+      
+      /*!
+       *
+       */
+      blocking_queue& operator=(const blocking_queue&) = delete;
+
+      /*! @function void push(const data_type& t) 
        *  @brief Push a value onto the queue.
        *  @param t The value to be pushed onto queue
        */
-      void push(const T& t)
+      void push(const data_type& t)
       {
          {
-            std::lock_guard<std::mutex> queue_lock(m_mutex);
+            std::lock_guard<mutex_type> queue_lock(m_mutex);
             m_queue.emplace_back(t);
          }
          m_condition.notify_one();
@@ -30,10 +50,10 @@ class blocking_queue
       /*!
        *
        */
-      bool pop_try_wait(T& t)
+      bool pop_try_wait(data_type& t)
       {
          // get the event
-         std::unique_lock<std::mutex> lock(m_mutex);
+         std::unique_lock<mutex_type> lock(m_mutex);
          auto wait_success = m_condition.wait_for
             (  lock
             ,  std::chrono::milliseconds(100)
@@ -53,10 +73,10 @@ class blocking_queue
       /*!
        *
        */
-      bool pop_force_wait(T& t)
+      bool pop_force_wait(data_type& t)
       {
          // get the event
-         std::unique_lock<std::mutex> lock(m_mutex);
+         std::unique_lock<mutex_type> lock(m_mutex);
          m_condition.wait
             (  lock
             ,  [this](){ return !this->m_queue.empty(); }
@@ -72,7 +92,7 @@ class blocking_queue
        */
       bool empty() const
       {
-         std::lock_guard<std::mutex> lock(m_mutex);
+         std::lock_guard<mutex_type> lock(m_mutex);
          return m_queue.empty();
       }
 };

@@ -33,6 +33,13 @@ void resizeHandler(int sig)
 int main(int argc, char* argv[])
 {
    using namespace std::chrono_literals;
+   //char *braille = 
+   // " ⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏\n"
+   // "⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟\n"
+   // "⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯\n"
+   // "⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿\n";
+
+   //setlocale(LC_ALL, "");
    
    // GET USER INFO
    passwd* pass = getpwuid(getuid());
@@ -41,6 +48,7 @@ int main(int argc, char* argv[])
    auto& gui = gui::gui::instance();
    debug::initialize();
    debug::message("FIRST MESSAGE");
+   //debug::message(std::string(braille));
    
    // CREATE GUI
    double height_frac = 0.80;
