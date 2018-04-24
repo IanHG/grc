@@ -21,11 +21,13 @@ int main(int argc, char* argv[])
    
    connect(sockfd, (sockaddr*) &servaddr, sizeof(servaddr));
    
-   char buf[1024];
-   while(read(sockfd, buf, 1024) != 0)
-   {
-      std::cout << buf << std::endl;
-   }
+   std::string msg("HELLO FROM CLIENT");
+   write(sockfd, msg.c_str(), msg.size());
+   //char buf[1024];
+   //while(read(sockfd, buf, 1024) != 0)
+   //{
+   //   std::cout << buf << std::endl;
+   //}
 
    close(sockfd);
 

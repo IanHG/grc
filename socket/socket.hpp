@@ -3,11 +3,20 @@
 
 #include <unistd.h>  
 
+#if defined (__unix__)
+
 #include <sys/types.h>  /* basic system datatypes */
 #include <sys/socket.h> /* basic socket stuff */
 #include <netinet/in.h> /* sockaddr_in and other internet definitions */
 #include <arpa/inet.h>  /* inet(3) functions */
 
+#define SOCKET int
+
+#elif defined (__WIN65) || defined (__WIN32)
+
+#endif
+
 #include <string.h> /* for memset */
+#include <fcntl.h>
 
 #endif /* SOCKET_H_INCLUDED */

@@ -4,17 +4,23 @@
 #include "../socket/socket.hpp"
 #include "../util/blocking_queue.hpp"
 #include "../util/thread_pool.hpp"
+#include "../util/event_handler.hpp"
 
 #include "../commandline/commandline.hpp"
 
 #define SERV_PORT 9877
 #define LISTENQ   1024
 
-class server_thread_pool
-   :  public thread_pool
-   //,  public singleton<server_thread_pool>
+enum events : int { message_recv };
+
+using event_handler_type = event_handler<events, void(const std::string&)>;
+
+struct server_internals
 {
-};
+   thread_pool*  m_pool;
+
+   event_handler_type* m_evh;
+} si;
 
 class message
 {
@@ -49,23 +55,6 @@ class message
       }
 };
 
-class message_queue
-   : public blocking_queue<message>
-{
-   private:
-      using queue_t = blocking_queue<message>;
-
-   public:
-      //!
-      message_queue() = default;
-      
-      //! Add a message to the queue.
-      auto add_message(const message& msg)
-      {
-         return queue_t::push(msg);
-      }
-};
-
 class connection
 {
    private:
@@ -80,6 +69,23 @@ class connection
       connection(int connfd)
          :  m_connfd(connfd)
       {
+         setup_listener();
+      }
+
+      void setup_listener()
+      {
+         si.m_pool->submit([this](){
+            //std::cout << " LOL HERE " << std::endl;
+            char buff[1024];
+            if(read(m_connfd, buff, 1024) != EWOULDBLOCK)
+            {
+               std::string str(buff);
+               std::cout << " HERE LOL " << std::endl;
+               std::cout << buff << std::endl;
+               si.m_evh->handle_event(events::message_recv, *si.m_pool, str);
+            }
+            this->setup_listener();
+         });
       }
 
       void send_message(const message& msg)
@@ -129,27 +135,27 @@ class connection_handler
          m_connection_list.emplace_back(conn);
       }
 
-      //!
-      void handle_messages(message_queue& q)
-      {
-         while(!q.empty())
-         {
-            while(!q.empty())
-            {
-               // Get messages
-               message_queue::data_type data;
-               q.pop_try_wait(data); 
+      ////!
+      //void handle_messages(message_queue& q)
+      //{
+      //   while(!q.empty())
+      //   {
+      //      while(!q.empty())
+      //      {
+      //         // Get messages
+      //         message_queue::data_type data;
+      //         q.pop_try_wait(data); 
 
-               // Handle messages
-               for(auto& conn : m_connection_list)
-               {
-                  m_thread_pool.submit([&conn, data](){
-                     conn.send_message(data);
-                  });
-               }
-            }
-         }
-      }
+      //         // Handle messages
+      //         for(auto& conn : m_connection_list)
+      //         {
+      //            m_thread_pool.submit([&conn, data](){
+      //               conn.send_message(data);
+      //            });
+      //         }
+      //      }
+      //   }
+      //}
 };
 
 int main(int argc, char* argv[])
@@ -161,11 +167,13 @@ int main(int argc, char* argv[])
    auto npool = cc.has("pool") ? cc.get<int>("pool") : 2;
 
    thread_pool pool(npool);
+   event_handler_type evh;
+   si.m_pool = &pool;
+   si.m_evh  = &evh;
+
+   si.m_evh->register_function(events::message_recv, [](const std::string& str){ std::cout << str << std::endl;} );
 
    connection_handler connhand(pool);
-
-   message_queue msg_queue;
-   msg_queue.add_message({"lol","lol"});
 
    int listenfd, connfd;
 
@@ -187,10 +195,12 @@ int main(int argc, char* argv[])
    {
       clilen = sizeof(cliaddr);
       connfd = accept(listenfd, (sockaddr*) &cliaddr, &clilen);
+      std::cout << " CONNECTION ACCEPTED " << std::endl;
+      int status = fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL, 0) | O_NONBLOCK);
+
+      std::cout << " ADDING CONNECTION " << std::endl;
 
       connhand.add_connection(connfd);
-
-      connhand.handle_messages(msg_queue);
 
       //pool.submit([connfd](){
       //   std::cout << " CONNECTION ACCEPTED " << std::endl;

@@ -29,7 +29,7 @@ class event_handler<EV,T(Ts...)>
       using deregister_list_t = std::list<uid_t>;
       using register_list_t   = std::list<std::tuple<event_t, function_t, uid_basic_t> >;
    
-   private: 
+   private:
       using mutex_t = std::recursive_mutex;
 
       //! Map of registered events.
@@ -49,8 +49,7 @@ class event_handler<EV,T(Ts...)>
       
       //! Mutex for manipulating deregister list
       mutex_t m_deregister_mutex;
-      
-      
+
       //! Generate unique ID for registered events.
       uid_basic_t generate_uid()
       {
@@ -157,12 +156,29 @@ class event_handler<EV,T(Ts...)>
       {
          std::lock_guard<mutex_t> lock(m_function_mutex);
 
-         debug::message("HANDLING EVENT");
-
          auto range = m_function_map.equal_range(event);
          for(auto iter = range.first; iter != range.second; ++iter)
          {
             std::get<0>(iter->second)(std::forward<Ts>(ts)...);
+         }
+         
+         this->handle_deregister(); 
+         this->handle_register();
+      }
+      
+      /**
+       * Handle an event asynchroniously by submitting job to a thread pool. Thread pool must implement a submit message.
+       **/
+      template<class P>
+      void handle_event_async(const event_t& event, P& pool, Ts&&... ts)
+      {
+         std::lock_guard<mutex_t> lock(m_function_mutex);
+
+         auto range = m_function_map.equal_range(event);
+         for(auto iter = range.first; iter != range.second; ++iter)
+         {
+            auto f = std::get<0>(iter->second);
+            pool.submit([f, &ts...](){f(std::forward<Ts>(ts)...);});
          }
          
          this->handle_deregister(); 
