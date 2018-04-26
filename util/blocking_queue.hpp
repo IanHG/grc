@@ -47,6 +47,19 @@ class blocking_queue
          m_condition.notify_one();
       }
       
+      /*! @function void push(data_type&& t) 
+       *  @brief Push a value onto the queue.
+       *  @param t The value to be pushed onto queue
+       */
+      void push(data_type&& t)
+      {
+         {
+            std::lock_guard<mutex_type> queue_lock(m_mutex);
+            m_queue.emplace_back(std::move(t));
+         }
+         m_condition.notify_one();
+      }
+      
       /*!
        *
        */

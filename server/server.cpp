@@ -2,6 +2,7 @@
 #include <list>
 
 #include "../socket/socket.hpp"
+#include "../socket/datagram.hpp"
 #include "../util/blocking_queue.hpp"
 #include "../util/thread_pool.hpp"
 #include "../util/event_handler.hpp"
@@ -13,7 +14,7 @@
 
 enum events : int { message_recv };
 
-using event_handler_type = event_handler<events, void(const std::string&)>;
+using event_handler_type = event_handler<events, void(const datagram&)>;
 
 struct server_internals
 {
@@ -58,56 +59,93 @@ class message
 class connection
 {
    private:
-      using mutex_t = std::mutex;
+      int m_connfd;
 
-      int     m_connfd;
+      datagram_reader m_reader;
+      datagram_writer m_writer;
       
-      mutex_t m_write_mutex;
+      std::atomic_bool m_running = true;
+      //std::atomic_bool m_listener_stopped = false;
+      //std::atomic_bool m_sender_stopped   = false;
 
-      mutex_t m_read_mutex;
+      void close_connection()
+      {
+         std::cout << " CLOSING CONNECTION " << std::endl;
+         m_running = false;
+         close(m_connfd);
+      }
+
+      void send_datagram_impl(const std::shared_ptr<datagram>& pdg)
+      {
+         si.m_pool->submit([this, pdg](){
+            std::cout << " TRYING TO WRITE\n " << *pdg << std::endl;
+            if(!m_writer.try_write_fd(m_connfd, *pdg))
+            {
+               if(m_running)
+               {
+                  send_datagram_impl(pdg);
+               }
+            }
+         });
+      }
+
    public:
       connection(int connfd)
          :  m_connfd(connfd)
       {
+         si.m_evh->register_function(events::message_recv, [this](const datagram& dg){ 
+            std::cout << " FIRING EVENT !!\n" << dg << std::endl;
+            this->send_datagram(dg);
+         } );
+         si.m_evh->handle_noevent();
          setup_listener();
       }
 
       void setup_listener()
       {
+         std::cout << " SETTING UP LISTENER " << std::endl;
          si.m_pool->submit([this](){
-            //std::cout << " LOL HERE " << std::endl;
-            char buff[1024];
-            if(read(m_connfd, buff, 1024) != EWOULDBLOCK)
+            datagram dg;
+            m_reader.try_read_fd(m_connfd);
+            m_reader.pop_try_wait(dg);
+
+            switch(dg.m_data_type) 
             {
-               std::string str(buff);
-               std::cout << " HERE LOL " << std::endl;
-               std::cout << buff << std::endl;
-               si.m_evh->handle_event(events::message_recv, *si.m_pool, str);
+               case datagram::message:
+                  std::cout << " RECIEVED DATAGRAM MESSAGE" << std::endl;
+                  si.m_evh->handle_event_async(events::message_recv, *si.m_pool, std::move(dg));
+                  //si.m_evh->handle_event(events::message_recv, dg);
+                  break;
+               case datagram::close:
+                  std::cout << " RECIEVED DATAGRAM CLOSE" << std::endl;
+                  this->close_connection();
+                  break;
+               case datagram::nodata:
+               default:
+                  ;
             }
-            this->setup_listener();
+            if(m_running)
+            {
+               this->setup_listener();
+            }
          });
       }
 
-      void send_message(const message& msg)
+      void send_datagram(const datagram& dg)
       {
-         std::lock_guard<mutex_t> lock(m_write_mutex);
+         auto pdg = dg.copy_to_shared();
 
-         auto& user = msg.get_user();
-         if(write(m_connfd, user.c_str(), user.size()) != user.size())
-         {
-            std::cout << " PROBLEM WRITING USER " << std::endl;
-         }
+         send_datagram_impl(pdg);
+      }
 
-         auto& str  = msg.get_message();
-         if(write(m_connfd, str.c_str(), str.size()) != str.size())
-         {
-            std::cout << " PROBLEM WRITING MESSAGE " << std::endl;
-         }
+      bool is_up()
+      {
+         return m_running;
       }
 
       ~connection()
       {
-         close(m_connfd);
+         close_connection();
       }
 };
 
@@ -171,8 +209,11 @@ int main(int argc, char* argv[])
    si.m_pool = &pool;
    si.m_evh  = &evh;
 
-   si.m_evh->register_function(events::message_recv, [](const std::string& str){ std::cout << str << std::endl;} );
-
+   si.m_evh->register_function(events::message_recv, [](const datagram& dg){ 
+      std::cout << dg << std::endl;
+   } );
+   si.m_evh->handle_noevent();
+   
    connection_handler connhand(pool);
 
    int listenfd, connfd;

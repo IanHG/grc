@@ -6,6 +6,7 @@
 #include <functional>
 #include <vector>
 #include <iostream>
+#include <tuple>
 
 #include "../gui/debug.hpp"
 
@@ -154,7 +155,9 @@ class event_handler<EV,T(Ts...)>
        **/
       void handle_event(const event_t& event, Ts&&... ts)
       {
+         std::cout << " CALLING HANDLE EVENT " << std::endl;
          std::lock_guard<mutex_t> lock(m_function_mutex);
+         std::cout << " AM I DEAD-LOCKED??? " << std::endl;
 
          auto range = m_function_map.equal_range(event);
          for(auto iter = range.first; iter != range.second; ++iter)
@@ -169,16 +172,23 @@ class event_handler<EV,T(Ts...)>
       /**
        * Handle an event asynchroniously by submitting job to a thread pool. Thread pool must implement a submit message.
        **/
-      template<class P>
-      void handle_event_async(const event_t& event, P& pool, Ts&&... ts)
+      template<class P, class... Tss>
+      void handle_event_async(const event_t& event, P& pool, Tss&&... ts)
       {
          std::lock_guard<mutex_t> lock(m_function_mutex);
+
+         //std::cout << " HANDLE EVENT ASYNC\n" << (ts << ...) << std::endl;
+         using tuple_type = std::tuple<Tss...>;
+         std::shared_ptr<tuple_type> args_ptr{new tuple_type{std::forward<Tss>(ts)...}};
 
          auto range = m_function_map.equal_range(event);
          for(auto iter = range.first; iter != range.second; ++iter)
          {
-            auto f = std::get<0>(iter->second);
-            pool.submit([f, &ts...](){f(std::forward<Ts>(ts)...);});
+            //std::cout << " HANDLE EVENT ASYNC\n" << (ts << ...) << std::endl;
+            pool.submit([f = std::get<0>(iter->second), args = args_ptr ](){ 
+               //std::cout << " LOL POOL: " << std::get<0>(args) << std::endl;
+               std::apply(f, *args); 
+            });
          }
          
          this->handle_deregister(); 

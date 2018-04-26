@@ -10,10 +10,10 @@
 #include <netinet/in.h> /* sockaddr_in and other internet definitions */
 #include <arpa/inet.h>  /* inet(3) functions */
 
-#define SOCKET int
+#define SOCKFD_TYPE int
 
 #elif defined (__WIN65) || defined (__WIN32)
-
+#define SOCKFD_TYPE SOCKET
 #endif
 
 #include <string.h> /* for memset */
