@@ -10,6 +10,8 @@
 
 #include "../gui/debug.hpp"
 
+using namespace std::chrono_literals;
+
 // EV := event type    F := function type
 template<class EV, class F> 
 class event_handler;
@@ -155,9 +157,7 @@ class event_handler<EV,T(Ts...)>
        **/
       void handle_event(const event_t& event, Ts&&... ts)
       {
-         std::cout << " CALLING HANDLE EVENT " << std::endl;
          std::lock_guard<mutex_t> lock(m_function_mutex);
-         std::cout << " AM I DEAD-LOCKED??? " << std::endl;
 
          auto range = m_function_map.equal_range(event);
          for(auto iter = range.first; iter != range.second; ++iter)
@@ -177,16 +177,13 @@ class event_handler<EV,T(Ts...)>
       {
          std::lock_guard<mutex_t> lock(m_function_mutex);
 
-         //std::cout << " HANDLE EVENT ASYNC\n" << (ts << ...) << std::endl;
          using tuple_type = std::tuple<Tss...>;
          std::shared_ptr<tuple_type> args_ptr{new tuple_type{std::forward<Tss>(ts)...}};
 
          auto range = m_function_map.equal_range(event);
          for(auto iter = range.first; iter != range.second; ++iter)
          {
-            //std::cout << " HANDLE EVENT ASYNC\n" << (ts << ...) << std::endl;
-            pool.submit([f = std::get<0>(iter->second), args = args_ptr ](){ 
-               //std::cout << " LOL POOL: " << std::get<0>(args) << std::endl;
+            pool.add(0s, [f = std::get<0>(iter->second), args = args_ptr ](bool){ 
                std::apply(f, *args); 
             });
          }

@@ -6,6 +6,7 @@
 #include "../util/blocking_queue.hpp"
 #include "../util/thread_pool.hpp"
 #include "../util/event_handler.hpp"
+#include "../util/timer_queue.hpp"
 
 #include "../commandline/commandline.hpp"
 
@@ -15,10 +16,11 @@
 enum events : int { message_recv };
 
 using event_handler_type = event_handler<events, void(const datagram&)>;
+using work_queue_type    = timer_queue;
 
 struct server_internals
 {
-   thread_pool*  m_pool;
+   work_queue_type*  m_queue;
 
    event_handler_type* m_evh;
 } si;
@@ -57,6 +59,7 @@ class message
 };
 
 class connection
+   :  public event_registerable<event_handler_type>
 {
    private:
       int m_connfd;
@@ -70,15 +73,16 @@ class connection
 
       void close_connection()
       {
-         std::cout << " CLOSING CONNECTION " << std::endl;
+         //std::cout << " CLOSING CONNECTION " << std::endl;
+         event_registerable<event_handler_type>::deregister_functions(*si.m_evh);
          m_running = false;
          close(m_connfd);
       }
 
       void send_datagram_impl(const std::shared_ptr<datagram>& pdg)
       {
-         si.m_pool->submit([this, pdg](){
-            std::cout << " TRYING TO WRITE\n " << *pdg << std::endl;
+         si.m_queue->add(100ms, [this, pdg](bool){
+            //std::cout << " TRYING TO WRITE\n " << *pdg << std::endl;
             if(!m_writer.try_write_fd(m_connfd, *pdg))
             {
                if(m_running)
@@ -93,8 +97,8 @@ class connection
       connection(int connfd)
          :  m_connfd(connfd)
       {
-         si.m_evh->register_function(events::message_recv, [this](const datagram& dg){ 
-            std::cout << " FIRING EVENT !!\n" << dg << std::endl;
+         event_registerable<event_handler_type>::register_function(*si.m_evh, events::message_recv, [this](const datagram& dg){ 
+            //std::cout << " FIRING EVENT !!\n" << dg << std::endl;
             this->send_datagram(dg);
          } );
          si.m_evh->handle_noevent();
@@ -103,8 +107,8 @@ class connection
 
       void setup_listener()
       {
-         std::cout << " SETTING UP LISTENER " << std::endl;
-         si.m_pool->submit([this](){
+         //std::cout << " SETTING UP LISTENER " << std::endl;
+         si.m_queue->add(100ms, [this](bool){
             datagram dg;
             m_reader.try_read_fd(m_connfd);
             m_reader.pop_try_wait(dg);
@@ -112,12 +116,12 @@ class connection
             switch(dg.m_data_type) 
             {
                case datagram::message:
-                  std::cout << " RECIEVED DATAGRAM MESSAGE" << std::endl;
-                  si.m_evh->handle_event_async(events::message_recv, *si.m_pool, std::move(dg));
+                  //std::cout << " RECIEVED DATAGRAM MESSAGE" << std::endl;
+                  si.m_evh->handle_event_async(events::message_recv, *si.m_queue, std::move(dg));
                   //si.m_evh->handle_event(events::message_recv, dg);
                   break;
                case datagram::close:
-                  std::cout << " RECIEVED DATAGRAM CLOSE" << std::endl;
+                  //std::cout << " RECIEVED DATAGRAM CLOSE" << std::endl;
                   this->close_connection();
                   break;
                case datagram::nodata:
@@ -154,15 +158,16 @@ class connection_handler
    private:
       using connection_list_t = std::list<connection>;
 
-      thread_pool&      m_thread_pool;
+      //thread_pool&      m_thread_pool;
       connection_list_t m_connection_list;
 
    public:
-      //! Default c-tor.
-      connection_handler(thread_pool& pool)
-         :  m_thread_pool(pool)
-      {
-      }
+      ////! Default c-tor.
+      //connection_handler(thread_pool& pool)
+      //   :  m_thread_pool(pool)
+      //{
+      //}
+      connection_handler() = default;
       
       //! Default d-tor.
       ~connection_handler() = default;
@@ -173,27 +178,20 @@ class connection_handler
          m_connection_list.emplace_back(conn);
       }
 
-      ////!
-      //void handle_messages(message_queue& q)
-      //{
-      //   while(!q.empty())
-      //   {
-      //      while(!q.empty())
-      //      {
-      //         // Get messages
-      //         message_queue::data_type data;
-      //         q.pop_try_wait(data); 
-
-      //         // Handle messages
-      //         for(auto& conn : m_connection_list)
-      //         {
-      //            m_thread_pool.submit([&conn, data](){
-      //               conn.send_message(data);
-      //            });
-      //         }
-      //      }
-      //   }
-      //}
+      void clean()
+      {
+         for(auto iter = m_connection_list.begin(); iter != m_connection_list.end(); )
+         {
+            if(!iter->is_up())
+            {
+               iter = m_connection_list.erase(iter);
+            }
+            else
+            {
+               ++iter;
+            }
+         }
+      }
 };
 
 int main(int argc, char* argv[])
@@ -202,19 +200,19 @@ int main(int argc, char* argv[])
       .option<int>("pool", "--pool")
       .parse(argc, argv);
 
-   auto npool = cc.has("pool") ? cc.get<int>("pool") : 2;
+   auto npool = cc.has("pool") ? cc.get<int>("pool") : 4;
 
-   thread_pool pool(npool);
+   work_queue_type pool(npool);
    event_handler_type evh;
-   si.m_pool = &pool;
-   si.m_evh  = &evh;
+   si.m_queue = &pool;
+   si.m_evh   = &evh;
 
    si.m_evh->register_function(events::message_recv, [](const datagram& dg){ 
       std::cout << dg << std::endl;
    } );
    si.m_evh->handle_noevent();
    
-   connection_handler connhand(pool);
+   connection_handler connhand;
 
    int listenfd, connfd;
 
@@ -242,6 +240,7 @@ int main(int argc, char* argv[])
       std::cout << " ADDING CONNECTION " << std::endl;
 
       connhand.add_connection(connfd);
+      //connhand.clean();
 
       //pool.submit([connfd](){
       //   std::cout << " CONNECTION ACCEPTED " << std::endl;

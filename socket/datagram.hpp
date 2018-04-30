@@ -70,6 +70,11 @@ struct datagram
          
          return pdg;
       }
+
+      static data_buffer_type allocate_data_buffer(int size)
+      {
+         return data_buffer_type{new char[size]};
+      }
       
       friend std::ostream& operator<<(std::ostream& os, const datagram& dg);
 
@@ -189,17 +194,17 @@ class datagram_reader
          //   std::cout << data_type_lol[i] << std::endl;
          //}
          
-         std::cout << " DATA RECIEVED" << std::endl;
-         std::cout << header_start << std::endl;
-         std::cout << header_size << std::endl;
-         std::cout << data_start << std::endl;
-         std::cout << data_size << std::endl;
-         std::cout << data_type << std::endl;
-         for(int i = 0; i < data_size; ++i)
-         {
-            std::cout << data[i] << std::endl;
-         }
-         std::cout << " DATA RECIEVED END " << std::endl;
+         //std::cout << " DATA RECIEVED" << std::endl;
+         //std::cout << header_start << std::endl;
+         //std::cout << header_size << std::endl;
+         //std::cout << data_start << std::endl;
+         //std::cout << data_size << std::endl;
+         //std::cout << data_type << std::endl;
+         //for(int i = 0; i < data_size; ++i)
+         //{
+         //   std::cout << data[i] << std::endl;
+         //}
+         //std::cout << " DATA RECIEVED END " << std::endl;
          // clean buffer
          //std::cout << " START: " << start << std::endl;
          int head = end + 1;
@@ -232,12 +237,12 @@ class datagram_reader
          {
             // try to read
             int buffer_capacity = std::min(m_readin_buffer_size, m_buffer_size - m_buffer_head);
-            std::cout << " BUFFER HEAD " << m_buffer_head << std::endl;
+            //std::cout << " BUFFER HEAD " << m_buffer_head << std::endl;
             int read_bytes = 0;
             if( (read_bytes = read(sockfd, m_buffer.get() + m_buffer_head, buffer_capacity)) == -1)
             {
-               perror("PERROR after read");
-               std::cout << "READ BYTES " << read_bytes << std::endl;
+               //perror("PERROR after read");
+               //std::cout << "READ BYTES " << read_bytes << std::endl;
                if (errno == EWOULDBLOCK || errno == EAGAIN) {
                   return;
                }
@@ -247,7 +252,7 @@ class datagram_reader
                blocking_queue<datagram>::push(datagram(datagram::close));
                return;
             }
-            std::cout << "READ BYTES " << read_bytes << std::endl;
+            //std::cout << "READ BYTES " << read_bytes << std::endl;
             
             // update buffer
             m_buffer_head += read_bytes;
@@ -267,13 +272,13 @@ class datagram_reader
          //int lol = 0;
          while(true)
          {
-            for(int i = 0; i < m_buffer_head; ++i)
-            {
-               std::cout << m_buffer[i];
-            }
-            std::cout << std::endl;
+            //for(int i = 0; i < m_buffer_head; ++i)
+            //{
+            //   std::cout << m_buffer[i];
+            //}
+            //std::cout << std::endl;
             auto t = search_for_message();
-            std::cout << std::get<0>(t) << "   " << std::get<1>(t) << "    " << std::get<2>(t) << std::endl;
+            //std::cout << std::get<0>(t) << "   " << std::get<1>(t) << "    " << std::get<2>(t) << std::endl;
             if(!std::get<0>(t))
             {
                break;
@@ -300,14 +305,15 @@ class datagram_writer
          auto [message, size] = dg.convert_to_message();
          
          int write_size = 0;
+         //std::cout << " BEFORE WRITE? " << std::endl;
          if(write_size = write(sockfd, message.get(), size) != size)
          {
-            std::cout << " HERE ?? " << write_size << std::endl;
+            //std::cout << " HERE ?? " << write_size << std::endl;
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
                return false;
             }
          }
-         std::cout << write_size << std::endl;
+         //std::cout << write_size << std::endl;
          return true;
       }
 };
