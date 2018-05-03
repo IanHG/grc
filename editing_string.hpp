@@ -137,6 +137,7 @@ class editing_string
          generate_alpha_event('U');
          generate_alpha_event('V');
          generate_alpha_event('W');
+         generate_alpha_event('X');
          generate_alpha_event('Y');
          generate_alpha_event('Z');
          

@@ -200,7 +200,7 @@ int main(int argc, char* argv[])
       .option<int>("pool", "--pool")
       .parse(argc, argv);
 
-   auto npool = cc.has("pool") ? cc.get<int>("pool") : 4;
+   auto npool = cc.has("pool") ? cc.get<int>("pool") : 2;
 
    work_queue_type pool(npool);
    event_handler_type evh;

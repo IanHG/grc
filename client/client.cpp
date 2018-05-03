@@ -121,7 +121,7 @@ int main(int argc, char* argv[])
       auto data = datagram::allocate_data_buffer(data_size);
       memcpy(data.get()                      , username.c_str(), username.size());
       memcpy(data.get() + username.size()    , " : "           , 3);
-      memcpy(data.get() + username.size() + 3, s.c_str()       , data_size);
+      memcpy(data.get() + username.size() + 3, s.c_str()       , s.size());
       
       datagram dg(datagram::message, std::move(data), data_size);
 
@@ -163,6 +163,7 @@ int main(int argc, char* argv[])
       //wprintw(display_window.get(), " : ");
       wprintw(display_window.get(), message.c_str());
    });
+   evh.handle_noevent();
    
    try
    {
