@@ -53,7 +53,13 @@ int connect()
    
    inet_pton(AF_INET, "localhost", &servaddr.sin_addr);
    
-   connect(sockfd, (sockaddr*) &servaddr, sizeof(servaddr));
+   int connect_status = -1;
+   if(connect_status = connect(sockfd, (sockaddr*) &servaddr, sizeof(servaddr)) != 0)
+   {
+      perror("Connect failed");
+      std::cout << sockfd << std::endl;
+   }
+   
    int status = fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL, 0) | O_NONBLOCK);
    
    return sockfd;
